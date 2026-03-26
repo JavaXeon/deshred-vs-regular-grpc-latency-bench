@@ -1,0 +1,14 @@
+[package]
+name = "deshred-vs-regular-grpc-latency-bench"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4.6.0", features = ["derive"] }
+futures = "0.3"
+rustls = { version = "0.23.37", default-features = false, features = ["ring"] }
+solana-sdk = "4.0.1"
+tokio = { version = "1.50.0", features = ["macros", "rt-multi-thread", "sync", "time"] }
+yellowstone-grpc-client = "12.2.0"
+yellowstone-grpc-proto = "12.1.0"
