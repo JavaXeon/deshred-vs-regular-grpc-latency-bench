@@ -158,7 +158,9 @@ async fn handle_deshred_update(
 
             let mut data = tx_data.write().await;
             data.entry(sig_str.clone())
-                .and_modify(|entry| entry.deshred_timestamp = Some(timestamp_ns))
+                .and_modify(|entry| {
+                    entry.deshred_timestamp.get_or_insert(timestamp_ns);
+                })
                 .or_insert(TransactionTimestamp {
                     signature: sig_str,
                     deshred_timestamp: Some(timestamp_ns),
@@ -187,7 +189,9 @@ async fn handle_regular_update(
 
             let mut data = tx_data.write().await;
             data.entry(sig_str.clone())
-                .and_modify(|entry| entry.regular_timestamp = Some(timestamp_ns))
+                .and_modify(|entry| {
+                    entry.regular_timestamp.get_or_insert(timestamp_ns);
+                })
                 .or_insert(TransactionTimestamp {
                     signature: sig_str,
                     deshred_timestamp: None,
