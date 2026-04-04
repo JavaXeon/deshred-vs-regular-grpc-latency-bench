@@ -31,7 +31,7 @@ struct Args {
 #[derive(Clone)]
 #[allow(dead_code)]
 struct TransactionTimestamp {
-    signature: String,
+    signature: Signature,
     deshred_timestamp: Option<i64>,
     regular_timestamp: Option<i64>,
 }
@@ -45,7 +45,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let token = args.token;
 
     let ready_barrier = Arc::new(Barrier::new(2));
-    let tx_data: Arc<RwLock<HashMap<String, TransactionTimestamp>>> = Arc::new(RwLock::new(HashMap::new()));
+    let tx_data: Arc<RwLock<HashMap<Signature, TransactionTimestamp>>> = Arc::new(RwLock::new(HashMap::new()));
 
     let tx_data_clone = tx_data.clone();
     let ready_barrier_clone = ready_barrier.clone();
@@ -93,7 +93,7 @@ async fn main() -> Result<(), anyhow::Error> {
 async fn start_deshred_stream(
     url: String,
     token: String,
-    tx_data: Arc<RwLock<HashMap<String, TransactionTimestamp>>>,
+    tx_data: Arc<RwLock<HashMap<Signature, TransactionTimestamp>>>,
     ready_barrier: Arc<Barrier>,
 ) -> Result<(), anyhow::Error> {
     let mut grpc_client = GeyserGrpcClient::build_from_shared(url)?
@@ -121,7 +121,7 @@ async fn start_deshred_stream(
 async fn start_regular_grpc_stream(
     url: String,
     token: String,
-    tx_data: Arc<RwLock<HashMap<String, TransactionTimestamp>>>,
+    tx_data: Arc<RwLock<HashMap<Signature, TransactionTimestamp>>>,
     ready_barrier: Arc<Barrier>,
 ) -> Result<(), anyhow::Error> {
     let mut grpc_client = GeyserGrpcClient::build_from_shared(url)?
@@ -145,7 +145,7 @@ async fn start_regular_grpc_stream(
 
 async fn handle_deshred_update(
     update: &SubscribeUpdateDeshred,
-    tx_data: Arc<RwLock<HashMap<String, TransactionTimestamp>>>,
+    tx_data: Arc<RwLock<HashMap<Signature, TransactionTimestamp>>>,
 ) -> Result<(), anyhow::Error> {
     match &update.update_oneof {
         Some(DeshredUpdateOneof::DeshredTransaction(txn)) => {
@@ -154,15 +154,14 @@ async fn handle_deshred_update(
 
             let tx = txn.transaction.as_ref().ok_or_else(|| anyhow::anyhow!("Missing transaction data"))?;
             let signature = Signature::try_from(tx.signature.as_slice())?;
-            let sig_str = signature.to_string();
 
             let mut data = tx_data.write().await;
-            data.entry(sig_str.clone())
+            data.entry(signature.clone())
                 .and_modify(|entry| {
                     entry.deshred_timestamp.get_or_insert(timestamp_ns);
                 })
                 .or_insert(TransactionTimestamp {
-                    signature: sig_str,
+                    signature,
                     deshred_timestamp: Some(timestamp_ns),
                     regular_timestamp: None,
                 });
@@ -176,7 +175,7 @@ async fn handle_deshred_update(
 
 async fn handle_regular_update(
     update: &SubscribeUpdate,
-    tx_data: Arc<RwLock<HashMap<String, TransactionTimestamp>>>,
+    tx_data: Arc<RwLock<HashMap<Signature, TransactionTimestamp>>>,
 ) -> Result<(), anyhow::Error> {
     match &update.update_oneof {
         Some(GrpcUpdateOneof::Transaction(txn)) => {
@@ -185,15 +184,14 @@ async fn handle_regular_update(
 
             let tx = txn.transaction.as_ref().ok_or_else(|| anyhow::anyhow!("Missing transaction data"))?;
             let signature = Signature::try_from(tx.signature.as_slice())?;
-            let sig_str = signature.to_string();
 
             let mut data = tx_data.write().await;
-            data.entry(sig_str.clone())
+            data.entry(signature.clone())
                 .and_modify(|entry| {
                     entry.regular_timestamp.get_or_insert(timestamp_ns);
                 })
                 .or_insert(TransactionTimestamp {
-                    signature: sig_str,
+                    signature,
                     deshred_timestamp: None,
                     regular_timestamp: Some(timestamp_ns),
                 });
@@ -262,7 +260,7 @@ fn current_timestamp_ns() -> Result<i64, anyhow::Error> {
         .as_nanos() as i64)
 }
 
-async fn print_latency_statistics(tx_data: &Arc<RwLock<HashMap<String, TransactionTimestamp>>>) {
+async fn print_latency_statistics(tx_data: &Arc<RwLock<HashMap<Signature, TransactionTimestamp>>>) {
     let data = tx_data.read().await;
 
     let mut latencies: Vec<i64> = Vec::new();
