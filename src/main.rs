@@ -33,7 +33,9 @@ struct Args {
 struct TransactionTimestamp {
     signature: Signature,
     deshred_timestamp: Option<i64>,
+    deshred_update_count: usize,
     regular_timestamp: Option<i64>,
+    regular_update_count: usize,
 }
 
 #[tokio::main]
@@ -159,11 +161,14 @@ async fn handle_deshred_update(
             data.entry(signature.clone())
                 .and_modify(|entry| {
                     entry.deshred_timestamp.get_or_insert(timestamp_ns);
+                    entry.deshred_update_count += 1;                    
                 })
                 .or_insert(TransactionTimestamp {
                     signature,
                     deshred_timestamp: Some(timestamp_ns),
+                    deshred_update_count: 1,
                     regular_timestamp: None,
+                    regular_update_count: 0,
                 });
         }
         Some(DeshredUpdateOneof::Ping(_)) => {}
@@ -189,11 +194,14 @@ async fn handle_regular_update(
             data.entry(signature.clone())
                 .and_modify(|entry| {
                     entry.regular_timestamp.get_or_insert(timestamp_ns);
+                    entry.regular_update_count += 1;
                 })
                 .or_insert(TransactionTimestamp {
                     signature,
                     deshred_timestamp: None,
+                    deshred_update_count: 0,
                     regular_timestamp: Some(timestamp_ns),
+                    regular_update_count: 1,
                 });
         }
         Some(GrpcUpdateOneof::Ping(_)) => {}
@@ -265,7 +273,9 @@ async fn print_latency_statistics(tx_data: &Arc<RwLock<HashMap<Signature, Transa
 
     let mut latencies: Vec<i64> = Vec::new();
     let mut deshred_total = 0usize;
+    let mut deshred_update_counts: Vec<usize> = Vec::new();
     let mut regular_total = 0usize;
+    let mut regular_update_counts: Vec<usize> = Vec::new(); 
     let mut matched_count = 0usize;
     let mut deshred_only = 0usize;
     let mut regular_only = 0usize;
@@ -279,10 +289,12 @@ async fn print_latency_statistics(tx_data: &Arc<RwLock<HashMap<Signature, Transa
 
         if has_deshred {
             deshred_total += 1;
+            deshred_update_counts.push(tx.deshred_update_count);
         }
 
         if has_regular {
             regular_total += 1;
+            regular_update_counts.push(tx.regular_update_count);
         }
 
         match (tx.deshred_timestamp, tx.regular_timestamp) {
@@ -308,6 +320,22 @@ async fn print_latency_statistics(tx_data: &Arc<RwLock<HashMap<Signature, Transa
     println!("\n=== Latency Statistics (regular - deshred) ===");
     println!("Unique signatures tracked: {}", data.len());
     println!("Deshred total received: {}", deshred_total);
+    if let (Some(min_count), Some(max_count)) = (
+        deshred_update_counts.iter().min(),
+        deshred_update_counts.iter().max(),
+    ) {
+        println!("Deshred update count per signature: min={}, max={}", min_count, max_count);
+    } else {
+        println!("Deshred update count per signature: min=0, max=0");
+    }
+    if let (Some(min_count), Some(max_count)) = (
+        regular_update_counts.iter().min(),
+        regular_update_counts.iter().max(),
+    ) {
+        println!("Regular update count per signature: min={}, max={}", min_count, max_count);
+    } else {
+        println!("Regular update count per signature: min=0, max=0");
+    }    
     println!("Regular gRPC total received: {}", regular_total);
     println!("Matched transactions (both sources): {}", matched_count);
     println!("Unmatched deshred-only: {}", deshred_only);

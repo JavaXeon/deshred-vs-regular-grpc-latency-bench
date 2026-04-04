@@ -17,6 +17,7 @@ At the end of the run it reports:
 - total updates seen from each stream
 - how many transactions were matched across both streams
 - how often deshred arrived earlier vs regular gRPC
+- the min/max number of deshred updates seen per transaction signature
 - min, max, average, median, P50, P90, and P99 latency
 
 ## Usage
